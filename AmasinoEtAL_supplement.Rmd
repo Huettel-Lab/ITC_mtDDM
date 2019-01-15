@@ -1,0 +1,1070 @@
+---
+title: "Supplement: Amount and time exert independent influences on intertermporal choice"
+output: html_notebook
+---
+Load packages and set participant exclusions
+```{r}
+### load things
+wd=getwd()
+setwd(wd) #Optional to set working directory where the data is
+library(ggplot2)
+library(ggsignif)
+library(reshape2)
+library(RColorBrewer)
+library(QuantPsyc)
+library(effsize)
+source("kendall.ci.R") #Load kendall.ci function***
+
+#subjects
+subjects=c(1:117);
+#Exclude all patient: 16,23,45,46,50,65,78,79,86,99,101,110
+sub_excl=c(1:15,17:22,24:44,47:49,51:64,66:77,80:85,87:98,100,102:109,111:117)
+ind<-which(subjects %in% sub_excl) #non all patient subjects
+#Subjects excluding bad eye tracking (validity<.5): 6,18,20,57,59,64,66,67,69,74,92,102
+sub_ETexcl=c(1:5,7:17,19,21:56,58,60:63,65,68,70:73,75:91,93:101,103:117)
+indET<-which(subjects %in% sub_ETexcl) #exclude bad eyetracking, but include all patient
+indETpat<-which(sub_ETexcl %in% sub_excl) #Neither all patient nor bad eyetracking
+
+subjects2=c(1:100);
+#Exclude 2,3,4,10,14*,15,24,25*,41,45,51,54,55,56,67,75,86,91,94,98,100
+# *are not all patient, they are just too noisy to fit
+sub2_excl=c(1,5:9,11:13,16:23,26:40,42:44,46:50,52,53,57:66,68:74,76:85,87:90,92,93,95:97,99);
+ind2<-which(subjects2 %in% sub2_excl) #non all patient subjects
+#Subjects excluding bad eye tracking (validity<.5): 4,10,18,20,25,39,42,50,56,57,59,61,72,82,95 
+sub2_ETexcl=c(1:3,5:9,11:17,19,21:24,26:38,40,41,43:49,51:55,58,60,62:71,73:81,83:94,96:100); 
+indET2<-which(subjects2 %in% sub2_ETexcl) #exclude bad eyetracking, but include all patient
+indETpat2<-which(sub2_ETexcl %in% sub2_excl) #Neither all patient nor bad eyetracking
+```
+Load data, make data frames
+```{r}
+#Discount rate (k-values) allLogk.mat 
+alllogk<-read.table("allLogk.csv", header=FALSE, sep=",") 
+alllogk2<-read.table("allLogk_rep.csv", header=FALSE, sep=",")
+
+#Conditions from original data (neutral/social)
+condition<-read.table("condition.csv", header=FALSE, sep=",") 
+condition2<-read.table("condition_rep.csv", header=FALSE, sep=",")
+
+#Make data frame of logk and condition
+df<-data.frame(unlist(alllogk),as.factor(unlist(condition)))
+colnames(df)<-c("logk","condition")
+df2<-data.frame(unlist(alllogk2),as.factor(unlist(condition2)))
+colnames(df2)<-c("logk","condition")
+
+#ABIS survey results
+#Primary sample
+abis<-read.table("ABIS.csv", header=FALSE, sep=",")
+abis$planning<-rowMeans(matrix(c(5-abis$V11,5-abis$V12,5-abis$V13,5-abis$V14), nrow=117, ncol=4))
+abis$motor<-rowMeans(matrix(c(abis$V7,abis$V8,abis$V9,abis$V10),nrow=117, ncol=4))
+abis$attention<-rowMeans(matrix(c(abis$V2,5-abis$V3,5-abis$V4,5-abis$V5,5-abis$V6),nrow=117, ncol=5))
+
+#Replication sample
+abis2<-read.table("ABIS_rep.csv", header=FALSE, sep=",")
+abis2$planning<-rowMeans(matrix(c(5-abis2$V3,5-abis2$V6,5-abis2$V10,5-abis2$V11), nrow=100, ncol=4))
+abis2$motor<-rowMeans(matrix(c(abis2$V4,abis2$V7,abis2$V9,abis2$V13),nrow=100, ncol=4))
+abis2$attention<-rowMeans(matrix(c(5-abis2$V2,5-abis2$V5,5-abis2$V8,abis2$V12,5-abis2$V14),nrow=100, ncol=5))
+ 
+#Response time 
+rt<-read.table("avgRT.csv", header=FALSE, sep=",")
+rt2<-read.table("avgRT_rep.csv", header=FALSE, sep=",")
+
+#Subjective value based on discount rate
+percL<-read.table("SVpropL.csv", header=FALSE, sep=",") 
+percT<-read.table("SVpropL_rep.csv", header=FALSE, sep=",")
+SV_RT<-read.table("SVrt.csv", header=FALSE, sep=",") 
+SV_RT2<-read.table("SVrt_rep.csv", header=FALSE, sep=",")
+SV_fix<-read.table("SVfixNums.csv", header=FALSE, sep=",") 
+SV_fix2<-read.table("SVfixNums_rep.csv", header=FALSE, sep=",")
+
+#Melt percL by subject id
+percLlong=melt(percL[ind,], id.vars=c("V1"))
+percLlong$variable=2*as.integer(percLlong$variable)-11 #get proper x vals
+#Melt percT by subject id
+percTlong=melt(percT[ind2,], id.vars=c("V1"))
+percTlong$variable=2*as.integer(percTlong$variable)-11 #get proper x vals
+#Melt RT by subject id
+SV_RTlong=melt(SV_RT[ind,], id.vars=c("V1"))
+SV_RTlong$variable=2*as.integer(SV_RTlong$variable)-11 #get proper x vals
+#Melt RT2 by subject id
+SV_RT2long=melt(SV_RT2[ind2,], id.vars=c("V1"))
+SV_RT2long$variable=2*as.integer(SV_RT2long$variable)-11 #get proper x vals
+#Melt fix by subject id
+SV_fixlong=melt(SV_fix[ind,], id.vars=c("V1"))
+SV_fixlong$variable=2*as.integer(SV_fixlong$variable)-11 #get proper x vals
+#Melt fix2 by subject id
+SV_fix2long=melt(SV_fix2[ind2,], id.vars=c("V1"))
+SV_fix2long$variable=2*as.integer(SV_fix2long$variable)-11 #get proper x vals
+
+#Eye tracking time bins
+#Primary sample
+choseL<-data.frame(t(read.table("binsL.csv", header=FALSE, sep=",")))
+choseR<-data.frame(t(read.table("binsR.csv", header=FALSE, sep=","))) 
+lookL<-data.frame(read.table("looksL.csv", header=FALSE, sep=",")) 
+lookR<-data.frame(read.table("looksR.csv", header=FALSE, sep=",")) 
+choseL2<-choseL[2:6,] #Restrict by eye tracking exclusions
+choseR2<-choseR[2:6,]
+choseL2$x<-as.factor(c(1:5)) #make time bins factors
+choseR2$x<-as.factor(c(1:5))
+choseL2<-melt(choseL2, id="x")
+choseR2<-melt(choseR2, id="x")
+choseL2$mark<-1
+choseR2$mark<-2
+choseLR<-rbind(choseL2,choseR2)
+choseLR$mark=as.factor(choseLR$mark)
+cols<-c("1"="black","2"="white")
+
+#Replication sample
+choseT<-data.frame(t(read.table("binsL_rep.csv", header=FALSE, sep=",")))
+choseB<-data.frame(t(read.table("binsR_rep.csv", header=FALSE, sep=",")))
+lookT<-data.frame(read.table("looksL_rep.csv", header=FALSE, sep=","))
+lookB<-data.frame(read.table("looksR_rep.csv", header=FALSE, sep=","))
+choseT2<-choseT[2:6,]
+choseB2<-choseB[2:6,]
+choseT2$x<-as.factor(c(1:5))
+choseB2$x<-as.factor(c(1:5))
+choseT2<-melt(choseT2, id="x")
+choseB2<-melt(choseB2, id="x")
+choseT2$mark<-1
+choseB2$mark<-2
+choseTB<-rbind(choseT2,choseB2)
+choseTB$mark=as.factor(choseTB$mark)
+
+#Eye tracking indices
+#Option index
+optInd<-read.table("OptInd.csv", header=FALSE, sep=",") 
+optInd2<-read.table("OptInd_rep.csv", header=FALSE, sep=",")
+#Attribute index
+attInd<-read.table("AttInd.csv", header=FALSE, sep=",") 
+attInd2<-read.table("AttInd_rep.csv", header=FALSE, sep=",")
+#Payne index
+payneInd<-read.table("PayneInd.csv", header=FALSE, sep=",") 
+payneInd2<-read.table("PayneInd_rep.csv", header=FALSE, sep=",")
+#First fixation locations
+firstFix<-read.table("firstFixes.csv", header=FALSE, sep=",") 
+firstFix2<-read.table("firstFixes_rep.csv", header=FALSE, sep=",")
+
+#Attribute-wise DDMs
+#Primary sample
+ddm<-read.table("attDDM.csv", header=FALSE, sep=",") 
+ddm$driftDif=ddm$V1-ddm$V2
+ddm$latdif=ddm$V3-ddm$V4
+dfDDM=data.frame(unlist(rt),ddm)
+colnames(dfDDM)<-c("rt","driftA","driftT","latA","latT","Bounds","LL","BIC","AIC","difDrift","diflat")
+dfDDM$logk=unlist(alllogk)
+dfDDM$color="light gray"
+dfDDM$color[ind]="gray"
+dfDDM$meanLat=(dfDDM$latA+dfDDM$latT)/2
+
+#Replication sample
+ddm2<-read.table("attDDM_rep.csv", header=FALSE, sep=",")
+ddm2$driftDif=ddm2$V1-ddm2$V2
+ddm2$latdif=ddm2$V3-ddm2$V4
+dfDDM2=data.frame(unlist(rt2),ddm2)
+colnames(dfDDM2)<-c("rt","driftA","driftT","latA","latT","Bounds","LL","BIC","AIC","difDrift","diflat")
+dfDDM2$logk=unlist(alllogk2)
+dfDDM2$color="light gray"
+dfDDM2$color[ind2]="gray"
+dfDDM2$meanLat=(dfDDM2$latA+dfDDM2$latT)/2
+
+#Option-wise DDMs (2-latency)
+#Primary sample
+ddm_hyp<-read.table("optDDM.csv", header=FALSE, sep=",")
+ddm_hyp$driftDif=log(ddm_hyp$V1)-log(ddm_hyp$V2)
+ddm_hyp$latdif=ddm_hyp$V3-ddm_hyp$V4
+dfDDM_hyp=data.frame(unlist(rt),ddm_hyp)
+colnames(dfDDM_hyp)<-c("rt","driftA","driftT","latA","latT","Bounds","LL","BIC","AIC","difDrift","diflat")
+dfDDM_hyp$logk=unlist(alllogk)
+dfDDM_hyp$color="light gray"
+dfDDM_hyp$color[ind]="gray"
+dfDDM_hyp$meanLat=(dfDDM_hyp$latA+dfDDM_hyp$latT)/2
+dfDDM_hyp$logDriftT=log(dfDDM_hyp$driftT) #take log of time drift slope
+dfDDM_hyp$logDriftT[dfDDM_hyp$driftT==0]=-10 #For driftT = 0 log is -inf, so put at -10 for display purposes (exclude from stats)
+dfDDM_hyp$difDrift=log(dfDDM_hyp$driftA)-dfDDM_hyp$logDriftT
+dfDDM_hyp$factor=as.factor(dfDDM_hyp$driftT==0) #Mark driftT = 0 for display
+indhyp<-intersect(ind, (which(dfDDM_hyp$factor==FALSE))) #index excluding driftT = 0
+
+#Replication
+ddm_hyp2<-read.table("optDDM_rep.csv", header=FALSE, sep=",")
+ddm_hyp2$driftDif=log(ddm_hyp2$V1)-log(ddm_hyp2$V2)
+ddm_hyp2$latdif=ddm_hyp2$V3-ddm_hyp2$V4
+dfDDM_hyp2=data.frame(unlist(rt2),ddm_hyp2)
+colnames(dfDDM_hyp2)<-c("rt","driftA","driftT","latA","latT","Bounds","LL","BIC","AIC","difDrift","diflat")
+dfDDM_hyp2$logk=unlist(alllogk2)
+dfDDM_hyp2$color="light gray"
+dfDDM_hyp2$color[ind2]="gray"
+dfDDM_hyp2$meanLat=(dfDDM_hyp2$latA+dfDDM_hyp2$latT)/2
+dfDDM_hyp2$logDriftT=log(dfDDM_hyp2$driftT) 
+dfDDM_hyp2$logDriftT[dfDDM_hyp2$driftT==0]=-10 
+dfDDM_hyp2$difDrift=log(dfDDM_hyp2$driftA)-dfDDM_hyp2$logDriftT
+dfDDM_hyp2$factor=as.factor(dfDDM_hyp2$driftT==0) 
+indhyp2<-intersect(ind2, (which(dfDDM_hyp2$factor==FALSE)))
+
+#Option-wise DDMs (1-latency)
+ddm_hyp1<-read.table("optDDM_1lat.csv", header=FALSE, sep=",")
+colnames(ddm_hyp1)<-c("driftA","driftT","lat","Bounds","LL","BIC","AIC")
+ddm_hyp1_2<-read.table("optDDM_1lat_rep.csv", header=FALSE, sep=",")
+colnames(ddm_hyp1_2)<-c("driftA","driftT","lat","Bounds","LL","BIC","AIC")
+
+#BIC data frames for option-wise 1 vs 2 latencies
+#Primary sample
+dfBIC_opt<-data.frame(dfDDM_hyp$BIC,ddm_hyp1$BIC,dfDDM_hyp$diflat)
+colnames(dfBIC_opt)=c("BIC2Lat","BIC1Lat","diflat")
+dfBIC_opt$difBIC=dfBIC_opt$BIC2Lat-dfBIC_opt$BIC1Lat
+dfBIC_opt$col<-"gray80" #all patient are light gray
+dfBIC_opt$col[which(dfBIC_opt$difBIC>0)]<-"gray25" 
+
+#Replication sample
+dfBIC_opt2<-data.frame(dfDDM_hyp2$BIC,ddm_hyp1_2$BIC,dfDDM_hyp2$diflat)
+colnames(dfBIC_opt2)=c("BIC2Lat","BIC1Lat","diflat")
+dfBIC_opt2$difBIC=dfBIC_opt2$BIC2Lat-dfBIC_opt2$BIC1Lat
+dfBIC_opt2$col<-"gray80" #all patient are light gray
+dfBIC_opt2$col[which(dfBIC_opt2$difBIC>0)]<-"gray25" 
+
+#DDM and eye tracking combined frames
+#Primary sample
+dfET=data.frame(ddm[indET,],opt,attInd,payneInd,firstFix)
+colnames(dfET)<-c("driftA","driftT","latA","latT","Bounds","LL","BIC","AIC",
+                  "difDrift","diflat","optInd","attInd","payneInd","firstFix")
+dfET$col<-"lightgray"
+dfET$col[indETpat]<-"gray"
+dfET$logk<-unlist(alllogk[indET,1]) 
+
+#Replication sample
+dfET2=data.frame(ddm2[indET2,],opt2,attInd2,payneInd2,firstFix2)
+colnames(dfET2)<-c("driftA","driftT","latA","latT","Bounds","LL","BIC","AIC",
+                  "difDrift","diflat","optInd","attInd","payneInd","firstFix")
+dfET2$col<-"lightgray"
+dfET2$col[indETpat2]<-"gray"
+dfET2$logk<-unlist(alllogk2[indET2,1])
+
+#Error analysis
+#LL>SS mean SV LL > SV SS, so an error means SS was chosen, correct means LL was chosen. 
+#SS>LL means SV SS > SV LL so an error means LL was chosen, correct means SS was chosen.
+
+#Primary sample
+error<-data.frame(t(read.table("errorMatrix.csv", header=FALSE, sep=",")))
+rownames(error)<-c('SS>LLErrRT','SS>LLCorRT','SS>LLErrOI','SS>LLCorOI','SS>LLErrAI','SS>LLCorAI','SS>LLErrPI','SS>LLCorPI','LL>SSErrRT','LL>SSCorRT','LL>SSErrOI','LL>SSCorOI','LL>SSErrAI','LL>SSCorAI','LL>SSErrPI','LL>SSCorPI')
+#Create variable that indexes errors vs. correct responses across types
+error$errCorr='Error' 
+error$errCorr[c(2,4,6,8,10,12,14,16)]='Correct' 
+error$errCorr=as.factor(error$errCorr)
+#Create variable that indicates correct answer (LL>SS or SS>LL) across types
+error$labels=c('SS>LLRT','SS>LLRT','SS>LLOI','SS>LLOI','SS>LLAI','SS>LLAI','SS>LLPI','SS>LLPI','LL>SSRT','LL>SSRT','LL>SSOI','LL>SSOI','LL>SSAI','LL>SSAI','LL>SSPI','LL>SSPI')
+error$labels=as.factor(error$labels)
+error$labels=factor(error$labels, levels= c('SS>LLRT', 'SS>LLRT', 'SS>LLOI', 'SS>LLOI', 'SS>LLAI', 'SS>LLAI', 'SS>LLPI', 'SS>LLPI', 'LL>SSRT', 'LL>SSRT', 'LL>SSOI', 'LL>SSOI', 'LL>SSAI', 'LL>SSAI', 'LL>SSPI', 'LL>SSPI'))
+#Melt data for each measure
+errorRT=melt(error[c(1:2,9:10),],id=c("errCorr","labels")) #Response time
+errorRT$value=as.numeric(errorRT$value)
+errorOI=melt(error[c(3:4,11:12),],id=c("errCorr","labels")) #Option index
+errorOI$value=as.numeric(errorOI$value)
+errorAI=melt(error[c(5:6,13:14),],id=c("errCorr","labels")) #Attribute index
+errorAI$value=as.numeric(errorAI$value)
+errorPI=melt(error[c(7:8,15:16),],id=c("errCorr","labels")) #Payne index
+errorPI$value=as.numeric(errorPI$value)
+
+#Replication Sample
+error2<-data.frame(t(read.table("errorMatrix_rep.csv", header=FALSE, sep=",")))
+rownames(error2)<-c('SS>LLErrRT','SS>LLCorRT','SS>LLErrOI','SS>LLCorOI','SS>LLErrAI','SS>LLCorAI','SS>LLErrPI','SS>LLCorPI','LL>SSErrRT','LL>SSCorRT','LL>SSErrOI','LL>SSCorOI','LL>SSErrAI','LL>SSCorAI','LL>SSErrPI','LL>SSCorPI')
+#Create variable that indexes errors vs. correct responses across types
+error2$errCorr='Error' 
+error2$errCorr[c(2,4,6,8,10,12,14,16)]='Correct' 
+error2$errCorr=as.factor(error2$errCorr)
+#Create variable that indicates correct answer (LL>SS or SS>LL) across types
+error2$labels=c('SS>LLRT','SS>LLRT','SS>LLOI','SS>LLOI','SS>LLAI','SS>LLAI','SS>LLPI','SS>LLPI','LL>SSRT','LL>SSRT','LL>SSOI','LL>SSOI','LL>SSAI','LL>SSAI','LL>SSPI','LL>SSPI')
+error2$labels=as.factor(error2$labels)
+error2$labels=factor(error2$labels, levels= c('SS>LLRT', 'SS>LLRT', 'SS>LLOI', 'SS>LLOI', 'SS>LLAI', 'SS>LLAI', 'SS>LLPI', 'SS>LLPI', 'LL>SSRT', 'LL>SSRT', 'LL>SSOI', 'LL>SSOI', 'LL>SSAI', 'LL>SSAI', 'LL>SSPI', 'LL>SSPI'))
+#Melt data for each measure
+errorRT2=melt(error2[c(1:2,9:10),],id=c("errCorr","labels")) #Response time
+errorRT2$value=as.numeric(errorRT2$value)
+errorOI2=melt(error2[c(3:4,11:12),],id=c("errCorr","labels")) #Option index
+errorOI2$value=as.numeric(errorOI2$value)
+errorAI2=melt(error2[c(5:6,13:14),],id=c("errCorr","labels")) #Attribute index
+errorAI2$value=as.numeric(errorAI2$value)
+errorPI2=melt(error2[c(7:8,15:16),],id=c("errCorr","labels")) #Payne index
+errorPI2$value=as.numeric(errorPI2$value)
+
+#Proportion of sides (left/right or top/bottom) of options chosen
+#Primary sample
+choiceSide<-data.frame(read.table("percLeft.csv", header=FALSE, sep=",")) 
+colnames(choiceSide)<-c("sideProp")
+
+#Replication sample
+choiceSide2<-data.frame(read.table("percLeft_rep.csv", header=FALSE, sep=","))
+colnames(choiceSide2)<-c("sideProp")
+
+#DDM estimates vs. actual proportion of LL choices 
+#Attribute-wise model (primary and replication samples)
+DDMcheck<-data.frame(read.table("attSimAcc.csv", header=FALSE, sep=","))
+colnames(DDMcheck)<-c("ActPat","EstPat")
+DDMcheck2<-data.frame(read.table("attSimAcc_rep.csv", header=FALSE, sep=","))
+colnames(DDMcheck2)<-c("ActPat", "EstPat")
+
+#Option-wise model (primary and replication samples)
+DDMcheck_opt<-data.frame(read.table("optSimAcc.csv", header=FALSE, sep=","))
+colnames(DDMcheck_opt)<-c("ActPat","EstPat")
+DDMcheck_opt2<-data.frame(read.table("optSimAcc_rep.csv", header=FALSE, sep=","))
+colnames(DDMcheck_opt2)<-c("ActPat","EstPat")
+
+#DDM estimates vs. actual response time distributions
+#Attribute-wise model 
+#Primary sample
+att_RT_sim<-data.frame(read.table("attSimRT.csv", header=FALSE, sep=","))
+colnames(att_RT_sim)<-c("RT1","RT2","RT3","RT4","RT5","RT6","RT7","RT8","simRT1","simRT2","simRT3","simRT4","simRT5","simRT6","simRT7","simRT8")
+att_RT<-data.frame(melt(att_RT_sim[,9:16]), melt(att_RT_sim[,1:8]))
+att_RT$quantile<-as.numeric(att_RT$variable)
+colnames(att_RT)<-c("variable","sampleRT","extra","origRT","quantile")
+
+#Replication sample
+att_RT2_sim<-data.frame(read.table("attSimRT_rep.csv", header=FALSE, sep=","))
+colnames(att_RT2_sim)<-c("RT1","RT2","RT3","RT4","RT5","RT6","RT7","RT8","simRT1","simRT2","simRT3","simRT4","simRT5","simRT6","simRT7","simRT8")
+att_RT2<-data.frame(melt(att_RT2_sim[,9:16]), melt(att_RT2_sim[,1:8]))
+att_RT2$quantile<-as.numeric(att_RT2$variable)
+colnames(att_RT2)<-c("variable","sampleRT","extra","origRT","quantile")
+
+#Option-wise model
+#Primary sample
+opt_RT_sim<-data.frame(read.table("optSimRT.csv", header=FALSE, sep=","))
+colnames(opt_RT_sim)<-c("RT1","RT2","RT3","RT4","RT5","RT6","RT7","RT8","simRT1","simRT2","simRT3","simRT4","simRT5","simRT6","simRT7","simRT8")
+opt_RT<-data.frame(melt(opt_RT_sim[,9:16]), melt(opt_RT_sim[,1:8]))
+opt_RT$quantile<-as.numeric(opt_RT$variable)
+colnames(opt_RT)<-c("variable","sampleRT","extra","origRT","quantile")
+
+#Replication sample
+opt_RT2_sim<-data.frame(read.table("optSimRT_rep.csv", header=FALSE, sep=","))
+colnames(opt_RT2_sim)<-c("RT1","RT2","RT3","RT4","RT5","RT6","RT7","RT8","simRT1","simRT2","simRT3","simRT4","simRT5","simRT6","simRT7","simRT8")
+opt_RT2<-data.frame(melt(opt_RT2_sim[,9:16]), melt(opt_RT2_sim[,1:8]))
+opt_RT2$quantile<-as.numeric(opt_RT2$variable)
+colnames(opt_RT2)<-c("variable","sampleRT","extra","origRT","quantile")
+
+#Errors
+numErrs <- read.table("numErrs.csv", header = FALSE, sep=",")
+numErrs2<- read.table("numErrs_rep.csv", header = FALSE, sep=",")
+colnames(numErrs)<-c("errors")
+colnames(numErrs2)<-c("errors")
+```
+Supplementary Figure 2: Condition vs. log(k) and ABIS analysis
+```{r}
+#Plot histograms of log(k) by condition
+#Primary sample
+ggplot(df, aes(x=logk, fill=condition))+
+  geom_histogram(binwidth=.5,alpha=.5,position="identity")+
+  scale_fill_manual(values=c("palegreen","cornflowerblue"), name="",labels=c("Neutral", "Social")) +
+  theme_bw()+theme(text=element_text(size=40))+xlim(-10,0)+xlab("log(k)")
+ggsave("logkCond.pdf",width=8, height=5)
+#Create index excluding all patient
+indCond1<-which(which(df$condition==1) %in% ind)
+indCond2<-which(which(df$condition==2) %in% ind)
+t.test(df$logk[indCond1],df$logk[indCond2]) 
+
+#Replication sample
+ggplot(df2, aes(x=logk, fill=condition))+
+  geom_histogram(binwidth=.5, alpha=.5,position="identity")+
+  scale_fill_manual(values=c("palegreen","cornflowerblue"), name="",labels=c("Neutral", "Social")) +
+  theme_bw()+theme(text=element_text(size=40))+xlim(-10,0)+xlab("log(k)")
+ggsave("logkCond2.pdf",width=8, height=5)
+indCond1<-which(which(df2$condition==1) %in% ind2)
+indCond2<-which(which(df2$condition==2) %in% ind2)
+t.test(df2$logk[indCond1],df2$logk[indCond2]) 
+
+#Correlation between ABIS scores and discount rate (excluding all patient), response time
+#Primary sample
+cor.test(abis$planning[ind],df$logk[ind]) 
+cor.test(abis$attention[ind],df$logk[ind])
+cor.test(abis$motor[ind],df$logk[ind]) 
+cor.test(abis$motor,unlist(rt)) 
+
+#Replication sample
+cor.test(abis2$planning[ind2],df2$logk[ind2]) 
+cor.test(abis2$attention[ind2],df2$logk[ind2])
+cor.test(abis2$motor[ind2],df2$logk[ind2]) 
+cor.test(abis2$motor,unlist(rt2)) 
+```
+Supplementary Figure 3: Manipulation checks of prop left responses, RTs, fixations for SV L - SV R
+```{r}
+#Percent choices by difference in SV 
+#Primary sample (L/R)
+ggplot(data=percLlong, aes(x=variable, y=value)) + theme_bw() +
+  geom_line(color='grey',alpha=.2, aes(group=as.numeric(V1))) +
+  xlim(-10,10) + geom_line(stat="summary", fun.y="mean", size=.5) +
+  stat_summary(fun.data=mean_se, geom="errorbar", width=.8) +
+  xlab("SV left - SV right") + ylab("Proportion left choices") +
+  theme(text=element_text(size=20))+ylim(0,1)
+  ggsave("SV_LR.pdf", width=5.5, height=5)
+
+#Replication sample (T/B)
+ggplot(data=percTlong, aes(x=variable, y=value))+ theme_bw()+
+  geom_line(color='grey',alpha=.2, aes(group=as.numeric(V1)))+xlim(-10,10)+
+  geom_line(stat="summary", fun.y="mean", size=.5)+
+  stat_summary(fun.data=mean_se, geom="errorbar", width=.8)+
+  xlab("SV top - SV bottom")+ylab("Proportion left choices")+
+  theme(text=element_text(size=20))+ylim(0,1)
+  ggsave("SV_TB.pdf", width=5.5, height=5)
+
+#RT by difference in SV
+#Primary sample (L/R)
+ggplot(data=SV_RTlong, aes(x=variable, y=value))+
+  geom_line(color='grey',alpha=.2, aes(group=as.numeric(V1)))+xlim(-10,10)+
+  geom_line(stat="summary", fun.y="mean", size=.5)+theme_bw()+
+  stat_summary(fun.data=mean_se, geom="errorbar", width=.8)+
+  xlab("SV left - SV right")+ylab("Response time (s)")+  
+  theme(text=element_text(size=20))+ylim(0,6.5)
+ ggsave("RT_LR.pdf",width=5.5, height=5)
+ 
+#Replication sample (T/B)
+ggplot(data=SV_RT2long, aes(x=variable, y=value)) +
+  geom_line(color='grey',alpha=.2, aes(group=as.numeric(V1)))+xlim(-10,10)+
+  geom_line(stat="summary", fun.y="mean", size=.5)+theme_bw()+
+  stat_summary(fun.data=mean_se, geom="errorbar", width=.8)+
+  xlab("SV top - SV bottom") + ylab("Response Time (s)")+
+  theme(text=element_text(size=20))+ylim(0,6.5)
+ggsave("RT_TB.pdf",width=5.5, height=5)
+
+#Fixations by difference in SV
+#Primary sample (L/R)
+ggplot(data=SV_fixlong, aes(x=variable, y=value)) +
+  geom_line(color='grey',alpha=.2, aes(group=as.numeric(V1)))+xlim(-10,10)+
+  geom_line(stat="summary", fun.y="mean", size=.5)+theme_bw()+
+  stat_summary(fun.data=mean_se, geom="errorbar", width=.8)+
+  xlab("SV left - SV right") + ylab("Number of fixations")+
+  theme(text=element_text(size=20))+ylim(0,17)
+ggsave("Fix_LR.pdf",width=5.5, height=5)
+
+#Replication sample (T/B)
+ggplot(data=SV_fix2long, aes(x=variable, y=value)) +
+  geom_line(color='grey',alpha=.2, aes(group=as.numeric(V1)))+xlim(-10,10)+
+  geom_line(stat="summary", fun.y="mean", size=.5)+theme_bw()+
+  stat_summary(fun.data=mean_se, geom="errorbar", width=.8)+
+  xlab("SV top - SV bottom") + ylab("Number of fixations")+
+  theme(text=element_text(size=20))+ylim(0,17)
+ggsave("Fix_TB.pdf",width=5.5, height=5)
+```
+Supplementary Figure 4:  Manipulation checks of eye tracking in time bins
+```{r}
+#Violin plot of time bins
+#Primary sample
+t.test(as.numeric(choseL[2,]), as.numeric(choseR[2,]),paired=TRUE) 
+t.test(as.numeric(choseL[3,]), as.numeric(choseR[3,]),paired=TRUE) 
+cohen.d(as.numeric(choseL[3,]),as.numeric(choseR[3,]),pooled=TRUE,paired=TRUE)
+t.test(as.numeric(choseL[4,]), as.numeric(choseR[4,]),paired=TRUE) 
+t.test(as.numeric(choseL[5,]), as.numeric(choseR[5,]),paired=TRUE) 
+t.test(as.numeric(choseL[6,]), as.numeric(choseR[6,]), paired=TRUE) 
+
+ggplot(choseLR, aes(x=x,y=value, fill=mark))+
+  geom_violin(alpha=.7, size=0, position="dodge")+
+  stat_summary(fun.y=mean,geom="point",shape=45,size=10, position=position_dodge(.9), aes(color=mark))+
+  scale_colour_manual(values=cols, name="", labels=c("Chose left", "Chose right"))+
+  geom_text(x=1, y=1.01, label="**")+ annotate("segment",x=0.7, xend=1.3, y=1, yend=1)+
+  geom_text(x=2, y=1.01, label="***")+ annotate("segment",x=1.7, xend=2.3, y=1, yend=1)+
+  geom_text(x=3, y=1.01, label="***")+ annotate("segment",x=2.7, xend=3.3, y=1, yend=1)+
+  geom_text(x=4, y=1.01, label="***")+ annotate("segment",x=3.7, xend=4.3, y=1, yend=1)+
+  geom_text(x=5, y=1.01, label="***")+ annotate("segment",x=4.7, xend=5.3, y=1, yend=1)+
+  scale_fill_grey(start=.3, end=.7, name="",labels=c("Chose left", "Chose right")) +
+  xlab("Time bins") + ylab("Proportion looking left") +
+  theme_bw()+theme(text=element_text(size=20), legend.position="bottom")
+ggsave("ET_LR.pdf",width=5.5, height=5)
+
+#Replication sample (ET bad data already excluded)
+t.test(as.numeric(choseT[2,]), as.numeric(choseB[2,]),paired=TRUE) 
+t.test(as.numeric(choseT[3,]), as.numeric(choseB[3,]),paired=TRUE) 
+cohen.d(as.numeric(choseT[3,]),as.numeric(choseB[3,]),pooled=TRUE,paired=TRUE)
+t.test(as.numeric(choseT[4,]), as.numeric(choseB[4,]),paired=TRUE) 
+t.test(as.numeric(choseT[5,]), as.numeric(choseB[5,]),paired=TRUE) 
+t.test(as.numeric(choseT[6,]), as.numeric(choseB[6,]),paired=TRUE) 
+
+ggplot(choseTB, aes(x=x,y=value, fill=mark))+
+  geom_violin(alpha=.7, size=0, position="dodge")+
+  stat_summary(fun.y=mean,geom="point",shape=45,size=10, position=position_dodge(.9), aes(color=mark))+
+  scale_colour_manual(values=cols, name="", labels=c("Chose top", "Chose bottom"))+
+  geom_text(x=1, y=1.01, label="**")+ annotate("segment",x=0.7, xend=1.3, y=1, yend=1)+
+  geom_text(x=2, y=1.01, label="***")+ annotate("segment",x=1.7, xend=2.3, y=1, yend=1)+
+  geom_text(x=3, y=1.01, label="***")+ annotate("segment",x=2.7, xend=3.3, y=1, yend=1)+
+  geom_text(x=4, y=1.01, label="***")+ annotate("segment",x=3.7, xend=4.3, y=1, yend=1)+
+  geom_text(x=5, y=1.01, label="***")+ annotate("segment",x=4.7, xend=5.3, y=1, yend=1)+
+  scale_fill_grey(start=.3, end=.7, name="",labels=c("Chose top", "Chose bottom")) +
+  xlab("Time bins") + ylab("Proportion looking top") +
+  theme_bw()+theme(text=element_text(size=20), legend.position="bottom")
+ggsave("ET_TB.pdf",width=5.5, height=5)
+
+#Violin plot last fixation location
+#Primary sample
+t.test(lookL[,2],lookR[,2], paired=TRUE) #adjust for ET exclusions 
+cohen.d(lookL[,2],lookR[,2],pooled=TRUE,paired=TRUE)
+lookL$mark<-"Last fix. left"
+lookR$mark<-"Last fix. right"
+lookLR<-rbind(lookL,lookR)
+meanL<-mean(lookL[,2])
+
+ggplot(lookLR, aes(x=mark,y=V2))+
+  geom_violin(fill="gray", size=0)+
+  stat_summary(fun.y=mean,geom="point",shape=45,size=10, color="white")+
+  geom_text(x=1.5, y=1.02, label="***")+ 
+  annotate("segment",x=1, xend=2, y=1.01, yend=1.01)+
+  theme_bw()+ylim(0,1.03)+xlab("") + ylab("Proportion left choices")+
+  theme(text=element_text(size=20))
+ggsave("ET_look_LR.pdf",width=5.5, height=5)
+
+#Replication sample
+t.test(lookT[,2],lookB[,2], paired=TRUE) #Already adjusted for ET exclusions 
+cohen.d(lookT[,2],lookB[,2],paired=TRUE, pooled=TRUE)
+lookT$mark<-"Last fix. top"
+lookB$mark<-"Last fix. bottom"
+lookTB<-rbind(lookT,lookB)
+lookTB$mark=factor(lookTB$mark,levels=c("Last fix. top","Last fix. bottom"), ordered=TRUE)
+meanT<-mean(lookT[,2])
+
+ggplot(lookTB, aes(x=mark,y=V2))+
+  geom_violin(fill="gray", size=0)+
+  stat_summary(fun.y=mean,geom="point",shape=45,size=10, color="white")+
+  geom_text(x=1.5, y=1.02, label="***")+ 
+  annotate("segment",x=1, xend=2, y=1.01, yend=1.01)+
+  theme_bw()+ylim(0,1.03)+xlab("") + ylab("Proportion top choices")+
+  theme(text=element_text(size=20))
+ggsave("ET_look_TB.pdf",width=5.5, height=5)
+```
+Supplementary Figure 5: Correlation between Option Index and discount rate k
+```{r}
+#Primary sample
+ggplot(dfET,aes(x=optInd,y=logk))+
+  geom_point(aes(alpha=.5, shape=col, color=col), size=2.5)+
+  theme_bw()+xlim(-1,1)+ylim(-10, 0)+
+  scale_colour_grey(start=.1, end=.6)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20), legend.position = "none")+
+  xlab("Option Index") +
+  ylab("Log(k)") 
+ggsave("Opt_LogK.pdf",width=5.7, height=5)
+cor.test(dfET$optInd[indETpat],dfET$logk[indETpat]) #Excluding bad eye tracking and participants with all patient choices
+
+#Replication sample
+ggplot(dfET2,aes(x=optInd,y=logk))+
+  geom_point(aes(color=col, alpha=.5,shape=col), size=2.5)+
+  theme_bw()+xlim(-1,1)+ylim(-10,0)+
+  scale_colour_grey(start=.1, end=.6)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20), legend.position = "none")+
+  xlab("Option Index") +
+  ylab("Log(k)") 
+ggsave("Opt_LogK2.pdf",width=5.7, height=5)
+cor.test(dfET2$optInd[indETpat2],dfET2$logk[indETpat2]) 
+```
+Supplementary Figure 6: Option-wise DDM models 1 vs. 2 latency 
+```{r}
+#Histogram
+#Primary sample
+col=c(rep("gray50",9),rep("gray25",2))
+ggplot(dfBIC_opt, aes(x=difBIC))+theme_bw()+
+  xlab("2 Latency - 1 latency Option-wise BIC")+ylab("Count")+
+  geom_histogram(breaks=seq(-90,20, by=10),fill=col, color="white")+
+  theme(text=element_text(size=20))+ylim(0,60)+
+  scale_x_continuous(breaks=seq(-90,20,by=10))
+ggsave("hist_BIC.pdf", width=5.5, height=4)
+
+#Replication sample
+col=c(rep("gray50",9),rep("gray25",2))
+ggplot(dfBIC_opt2, aes(x=difBIC))+theme_bw()+
+  xlab("2 Latency - 1 latency Option-wise BIC")+ylab("Count")+
+  geom_histogram(breaks=seq(-90,20, by=10),fill=col, color="white")+
+  theme(text=element_text(size=20))+ylim(0,60)+
+  scale_x_continuous(breaks=seq(-90,20,by=10))
+ggsave("hist_BIC2.pdf", width=5.5, height=4)
+
+#Scatterplot of difBIC by difference in latencies 
+#Primary sample
+ggplot(dfBIC_opt, aes(x=difBIC, y=abs(diflat/100))) + 
+  geom_point(aes(color=col),size=2.5, alpha=.7)+
+  guides(alpha=FALSE)+ylim(0,2)+
+  theme_bw()+scale_colour_grey(start=.2, end=.5)+
+  scale_x_continuous(breaks=seq(-90,20,by=10),limits=c(-90,20))+
+  theme(text=element_text(size=20),legend.position = "none")+
+  xlab("2 Latency - 1 Latency Option-wise BIC") +
+  ylab("Amount-Time latency (s)") 
+ggsave("DDM_opt_BIC.pdf",width=6.2,height=5)
+cor.test(dfBIC_opt$difBIC,abs(dfBIC_opt$diflat), method="kendall") #difBIC is quite skewed, so use kendall's
+kendall.ci(dfBIC_opt$difBIC,abs(dfBIC_opt$diflat))
+binom.test(sum(dfBIC_opt$difBIC<0),length(dfBIC_opt$difBIC),p=.5,alternative=c("two.sided"))
+
+#Replication sample
+ggplot(dfBIC_opt2, aes(x=difBIC, y=abs(diflat/100))) + 
+  geom_point(aes(color=col),size=2.5, alpha=.7)+
+  guides(alpha=FALSE)+ylim(0,2)+
+  theme_bw()+scale_colour_grey(start=.2, end=.5)+
+  scale_x_continuous(breaks=seq(-90,20,by=10),limits=c(-90,20))+
+  theme(text=element_text(size=20),legend.position = "none")+
+  xlab("2 Latency - 1 Latency Option-wise BIC") +
+  ylab("Amount-Time latency (s)") 
+ggsave("DDM_opt_BIC2.pdf",width=6.2,height=5)
+cor.test(dfBIC_opt2$difBIC,abs(dfBIC_opt2$diflat), method="kendall") #-.23, p=.022
+kendall.ci(dfBIC_opt2$difBIC,abs(dfBIC_opt2$diflat))
+binom.test(sum(dfBIC_opt2$difBIC<0),length(dfBIC_opt2$difBIC),p=.5,alternative=c("two.sided"))
+```
+Supplementary Figure 7: DDM option-wise model plots
+```{r}
+#Correlation of time drift slope and discount rate (k-val)
+#Primary sample
+ggplot(dfDDM_hyp, aes(x=logDriftT, y=logk)) +
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  geom_point(aes(shape=factor))+
+    scale_shape_manual(values=c(1,16,17,3))+
+  guides(alpha=FALSE)+ theme_bw()+
+  scale_colour_grey(start=.1, end=.6)+ ylim(-10,0)+
+  theme(text=element_text(size=20),legend.position = "none",  plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  scale_x_continuous(breaks=seq(-10,0,by=2), limits=c(-10,-1))+
+  xlab("log(Drift Slope Time)") + ylab("Log(k)") 
+ggsave("driftT_logK_opt.pdf",width=6.5, height=5.5)
+cor.test(dfDDM_hyp$logDriftT[indhyp],dfDDM_hyp$logk[indhyp])# Excluding driftT = 0 
+
+#Replication sample
+ggplot(dfDDM_hyp2, aes(x=logDriftT, y=logk)) +
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  geom_point(aes(x=logDriftT, y=logk,shape=factor))+
+  guides(alpha=FALSE)+theme_bw()+
+  scale_colour_grey(start=.1, end=.6)+ylim(-10,0)+
+  scale_shape_manual(values=c(1,16,17,3))+
+  theme(text=element_text(size=20),legend.position = "none", plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  scale_x_continuous(breaks=seq(-10,0,by=2), limits=c(-10,-1))+
+  xlab("log(Drift Slope Time)") +
+  ylab("Log(k)") 
+ggsave("driftT_logK2_opt.pdf",width=6.5, height=5.5)
+cor.test(dfDDM_hyp2$logDriftT[indhyp2],dfDDM_hyp2$logk[indhyp2])  
+
+#Correlation between difference in attribute latencies and discount rate (k-val)
+#Primary sample
+ggplot(dfDDM_hyp, aes(x=diflat/100, y=logk)) +
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+ theme_bw()+
+  scale_colour_grey(start=.1, end=.6)+xlim(-2,2)+ylim(-10,0)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20),legend.position = "none",  plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  xlab("Amount Latency - Time Latency (s)") + ylab("Log(k)") 
+ggsave("difLat_logK_opt.pdf",width=6, height=5)
+cor.test(dfDDM_hyp$diflat[ind],dfDDM_hyp$logk[ind]) 
+
+#Replication sample
+ggplot(dfDDM_hyp2, aes(x=diflat/100, y=logk)) +
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+theme_bw()+
+  scale_colour_grey(start=.1, end=.6)+xlim(-2,2)+ylim(-10,0)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20),legend.position = "none",    plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  xlab("Amount Latency - Time Latency (s)") + ylab("Log(k)") 
+ggsave("difLat_logK2_opt.pdf",width=6, height=5)
+cor.test(dfDDM_hyp2$diflat[ind2],dfDDM_hyp2$logk[ind2]) 
+
+#Correlation between bounds and discount rate (k-val)
+cor.test(dfDDM_hyp$Bounds[ind],dfDDM_hyp$logk[ind]) 
+cor.test(dfDDM_hyp2$Bounds[ind2],dfDDM_hyp2$logk[ind2]) 
+```
+Supplementary Figure 8: Response time and discount rate models (linear and quadratic)
+```{r}
+#Linear model of response time and discount rate (k-val)
+#Primary sample
+ggplot(dfDDM, aes(x=logk,y=rt)) +
+  geom_point(size=2.5, alpha=.5,aes(color=color, shape=color))+  
+  theme_bw()+scale_colour_grey(start=.1, end=.6)+
+  geom_smooth(data=dfDDM[ind,],method="lm",formula=y~poly(x,1))+
+  xlim(-10,0)+ylim(0,5.5)+ylab("Response Time (s)")+xlab("log(k)")+
+  theme(text=element_text(size=20),legend.position = "none")
+ggsave("linPlot_RT.pdf",width=5.5, height=5)
+linRT<-lm(rt[ind]~logk[ind],data=dfDDM) #linear model
+summary(linRT) #Summary of linear model
+
+#Replication sample
+ggplot(dfDDM2, aes(x=logk,y=rt)) +
+  geom_point(size=2.5, alpha=.5,aes(color=color, shape=color)) +
+  theme_bw()+scale_colour_grey(start=.1, end=.6)+
+  geom_smooth(data=dfDDM2[ind2,],method="lm",formula=y~poly(x,1))+
+  xlim(-10,0)+ylim(0,5.5)+ylab("Response Time (s)")+xlab("log(k)")+
+  theme(text=element_text(size=20),legend.position = "none")
+ggsave("linPlot_RT2.pdf",width=5.5, height=5)
+linRT2<-lm(rt[ind2]~logk[ind2],data=dfDDM2)
+summary(linRT2)
+
+#Quadratic model of response time and discount rate (k-val)
+#Primary sample
+ggplot(dfDDM, aes(x=logk,y=rt)) +
+  geom_point(size=2.5, alpha=.5,aes(color=color, shape=color)) +    
+  theme_bw()+scale_colour_grey(start=.1, end=.6)+
+  geom_smooth(data=dfDDM[ind,],method="lm",formula=y~poly(x,2))+
+  xlim(-10,0)+ylim(0,5.5)+ylab("Response Time (s)")+xlab("log(k)")+
+  theme(text=element_text(size=20),legend.position = "none")
+ggsave("quadPlot_RT.pdf",width=5.5, height=5)
+quadRT<-lm(rt[ind]~poly(logk[ind],2),data=dfDDM)
+summary(quadRT)
+
+#Replication sample
+ggplot(dfDDM2, aes(x=logk,y=rt)) +
+  geom_point(size=2.5, alpha=.5,aes(color=color, shape=color)) +
+  theme_bw()+scale_colour_grey(start=.1, end=.6)+
+  geom_smooth(data=dfDDM2[ind2,],method="lm",formula=y~poly(x,2))+
+  xlim(-10,0)+ylim(0,5.5)+ylab("Response Time (s)")+xlab("log(k)")+
+  theme(text=element_text(size=20),legend.position = "none")
+ggsave("quadPlot_RT2.pdf",width=5.5, height=5)
+quadRT2<-lm(rt[ind2]~poly(logk[ind2],2),data=dfDDM2)
+summary(quadRT2)
+```
+Supplementary Figure 9: Correlation of first fixation location and difference in latency
+```{r}
+#Primary sample
+ggplot(dfET, aes(x=diflat/100, y=firstFix)) +
+  geom_point(aes(alpha=.5),size=2.5)+
+  guides(alpha=FALSE,color=FALSE, shape=FALSE)+
+  theme_bw()+xlim(-2,2)+
+  scale_colour_grey()+ylim(0,1)+
+  theme(text=element_text(size=20))+
+  xlab("Amount latency - Time latency (s)") + 
+  ylab("Prop. first fixations to amount") 
+ggsave("difLat_firstFix.pdf",width=5.7, height=5)
+cor.test(dfET$diflat,dfET$firstFix, method=c("kendall"))
+kendall.ci(dfET$diflat,dfET$firstFix)
+
+#Replication sample
+ggplot(dfET2, aes(x=diflat/100, y=firstFix)) +
+  geom_point(aes(alpha=.5),size=2.5)+
+  guides(alpha=FALSE,color=FALSE, shape=FALSE)+
+  theme_bw()+xlim(-2,2)+
+  scale_colour_grey()+ylim(0,1)+
+  theme(text=element_text(size=20))+
+  xlab("Amount latency - Time latency (s)") + 
+  ylab("Prop. first fixations to amount") 
+ggsave("difLat_firstFix2.pdf",width=5.7, height=5)
+cor.test(dfET2$diflat,dfET2$firstFix,method=c("kendall"))
+kendall.ci(dfET2$diflat,dfET2$firstFix)
+```
+Supplementary Figure 10: Correlation of Attribute index and Payne index
+```{r}
+#Primary sample
+ggplot(dfET, aes(x=attInd, y=payneInd)) +
+  geom_point(size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+ theme_bw()+xlim(-1,1)+
+  scale_colour_grey()+ylim(-1,1)+
+  theme(text=element_text(size=20))+
+  xlab("Attribute index") + ylab("Payne index") 
+ggsave("att_payne.pdf",width=5.7, height=5)
+cor.test(dfET$payneInd,dfET$attInd)
+
+#Replication sample
+ggplot(dfET2, aes(x=attInd, y=payneInd)) +
+  geom_point(size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+ theme_bw()+xlim(-1,1)+
+  scale_colour_grey()+ylim(-1,1)+
+  theme(text=element_text(size=20))+
+  xlab("Attribute index") + ylab("Payne index") 
+ggsave("att_payne2.pdf",width=5.7, height=5)
+cor.test(dfET2$payneInd,dfET2$attInd) 
+```
+Supplementary Figure 11: Correlation of Eye tracking indices and discount rate
+```{r}
+#Plot correlation between attribute index and discount rate (k-val)
+#Primary Sample
+ggplot(dfET, aes(x=attInd, y=logk)) +
+  geom_point(aes(alpha=.5, color=col, shape=col),size=2.5)+
+  guides(alpha=FALSE,color=FALSE, shape=FALSE)+
+  theme_bw()+xlim(-1,1)+
+  scale_colour_grey()+ylim(-10,0)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20))+
+  xlab("Attribute index") + ylab("log(k)") 
+ggsave("logk_att.pdf",width=5.7, height=5)
+cor.test(dfET$attInd[indETpat],dfET$logk[indETpat]) #Excluding all patient, bad eyetracking
+
+#Replication sample
+ggplot(dfET2, aes(x=attInd, y=logk)) +
+  geom_point(size=2.5, aes(alpha=.5, color=col, shape=col))+
+  guides(alpha=FALSE,color=FALSE, shape=FALSE)+
+  theme_bw()+xlim(-1,1)+
+  scale_colour_grey()+ylim(-10,0)+
+  theme(text=element_text(size=20))+
+  xlab("Attribute index") + ylab("log(k)") 
+ggsave("logk_att2.pdf",width=5.7, height=5)
+cor.test(dfET2$attInd[indETpat2],dfET2$logk[indETpat2]) 
+
+#Plot correlation between Payne index and discount rate
+ggplot(dfET, aes(x=payneInd, y=logk)) +
+  geom_point(aes(alpha=.5, color=col, shape=col),size=2.5)+
+  guides(alpha=FALSE,color=FALSE, shape=FALSE)+
+  theme_bw()+xlim(-1,1)+
+  scale_colour_grey()+ylim(-10,0)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20))+
+  xlab("Payne index") + ylab("log(k)") 
+ggsave("logk_payne.pdf",width=5.7, height=5)
+cor.test(dfET$payneInd[indETpat],dfET$logk[indETpat]) 
+
+#Replication sample
+ggplot(dfET2, aes(x=payneInd, y=logk)) +
+  geom_point(size=2.5, aes(alpha=.5, color=col, shape=col))+
+  guides(alpha=FALSE,color=FALSE, shape=FALSE)+
+  theme_bw()+xlim(-1,1)+
+  scale_colour_grey()+ylim(-10,0)+
+  theme(text=element_text(size=20))+
+  xlab("Payne index") +
+  ylab("log(k)") 
+ggsave("logk_payne2.pdf",width=5.7, height=5)
+cor.test(dfET2$payneInd[indETpat2],dfET2$logk[indETpat2]) 
+```
+Table 1, Table 2: Linear models of discount rate on DDM parameters
+```{r}
+#linear model of combined DDM parameters
+
+#Attribute-wise DDM
+#Primary sample
+lm_att_dif<-lm(logk[ind]~difDrift[ind]+diflat[ind]+Bounds[ind], data=dfDDM)
+summary(lm_att_dif)
+lm.beta(lm_att_dif) #standardized betas
+
+#Replication sample
+lm_att_dif2<-lm(logk[ind2]~difDrift[ind2]+diflat[ind2]+Bounds[ind2], data=dfDDM2)
+summary(lm_att_dif2)
+lm.beta(lm_att_dif2) #standardized betas
+
+#Option-wise DDM (excluding participants with 0 drift slope for time)
+#Primary sample
+lm_opt_dif<-lm(logk[indhyp]~difDrift[indhyp]+diflat[indhyp]+Bounds[indhyp], data=dfDDM_hyp)
+summary(lm_opt_dif)
+lm.beta(lm_opt_dif) #standardized betas
+
+#Replication sample 
+lm_opt_dif2<-lm(logk[indhyp2]~difDrift[indhyp2]+diflat[indhyp2]+Bounds[indhyp2], data=dfDDM_hyp2)
+summary(lm_opt_dif2)
+lm.beta(lm_opt_dif2) #standardized betas
+
+#Linear model of separate (amount and time) DDM parameters
+
+#Attribute-wise DDM
+#Primary sample
+lm_att<-lm(logk[ind]~driftA[ind]+driftT[ind]+latA[ind]+latT[ind]+Bounds[ind], data=dfDDM)
+summary(lm_att)
+lm.beta(lm_att) #standardized betas
+
+#Replication sample
+lm_att2<-lm(logk[ind2]~driftA[ind2]+driftT[ind2]+latA[ind2]+latT[ind2]+Bounds[ind2], data=dfDDM2)
+summary(lm_att2)
+lm.beta(lm_att2) #standardized betas
+
+#Option-wise DDM (excluding participants with 0 drift slope for time)
+#Primary sample
+lm_hyp<-lm(logk[indhyp]~log(driftA[indhyp])+logDriftT[indhyp]+latA[indhyp]+latT[indhyp]+Bounds[indhyp], data=dfDDM_hyp)
+summary(lm_hyp)
+lm.beta(lm_hyp) #standardized betas
+
+#Replication sample
+lm_hyp2<-lm(logk[indhyp2]~log(driftA[indhyp2])+logDriftT[indhyp2]+latA[indhyp2]+latT[indhyp2]+Bounds[indhyp2], data=dfDDM_hyp2)
+summary(lm_hyp2)
+lm.beta(lm_hyp2) #standardized betas
+```
+Supplementary Figure 12 Error analysis
+```{r}
+#Response time error analysis
+#Primary sample
+t.test(errorRT$value[errorRT$errCorr=="Error" & errorRT$labels=="SS>LLRT"], errorRT$value[errorRT$errCorr=="Correct" & errorRT$labels=="SS>LLRT"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct response time
+t.test(errorRT$value[errorRT$errCorr=="Error" & errorRT$labels=="LL>SSRT"], errorRT$value[errorRT$errCorr=="Correct" & errorRT$labels=="LL>SSRT"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct response time
+cohen.d(errorRT$value[errorRT$labels=="LL>SSRT"],errorRT$errCorr[errorRT$labels=="LL>SSRT"],pooled=TRUE,na.rm=TRUE, paired=TRUE) #Effect size for response time difference
+
+ggplot(errorRT, aes(x=labels,y=value, fill=errCorr))+
+  geom_violin(alpha=.6, size=0,position=position_dodge(0))+
+  stat_summary(fun.data="mean_se",geom="linerange",aes(color=errCorr),alpha=1,size=1.5)+
+  stat_summary(fun.y=mean, geom="line",aes(group=errCorr, color=errCorr),size=1.5)+
+  geom_text(x=2, y=7.4, label="***",size=10)+ coord_cartesian(ylim=c(0,7.5))+
+  theme_bw()+theme(text=element_text(size=20))+
+  scale_x_discrete(labels=c("SS>LL", "LL>SS"))+ 
+  xlab("Choices")+ylab("Response Time (s)")+labs(fill="",color="")+
+  guides(size="none")+ scale_colour_grey()+scale_fill_grey()
+ggsave("errRT.pdf",width=6.5, height=5)
+
+#Replication sample
+t.test(errorRT2$value[errorRT2$errCorr=="Error" & errorRT2$labels=="SS>LLRT"], errorRT2$value[errorRT2$errCorr=="Correct" & errorRT2$labels=="SS>LLRT"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct response time
+t.test(errorRT2$value[errorRT2$errCorr=="Error" & errorRT2$labels=="LL>SSRT"], errorRT2$value[errorRT2$errCorr=="Correct" & errorRT2$labels=="LL>SSRT"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct response time
+cohen.d(errorRT2$value[errorRT2$labels=="LL>SSRT"],errorRT2$errCorr[errorRT2$labels=="LL>SSRT"],pooled=TRUE,na.rm=TRUE, paired=TRUE) #Effect size for response time difference
+
+ggplot(errorRT2, aes(x=labels,y=value, fill=errCorr))+
+  geom_violin(alpha=.6, size=0,position=position_dodge(0))+
+  stat_summary(fun.data="mean_se",geom="linerange",aes(color=errCorr),alpha=1,size=1.5)+
+  stat_summary(fun.y=mean, geom="line",aes(group=errCorr, color=errCorr),size=1.5)+
+  geom_text(x=2, y=7.4, label="***",size=10)+ coord_cartesian(ylim=c(0,7.5))+
+  theme_bw()+theme(text=element_text(size=20))+
+  scale_x_discrete(labels=c("SS>LL", "LL>SS"))+
+  xlab("Choices")+ylab("Response Time (s)")+labs(fill="",color="")+
+  guides(size="none")+scale_colour_grey()+scale_fill_grey()
+ggsave("errRT2.pdf",width=6.5, height=5)
+
+#Option index analysis
+#Primary sample
+t.test(errorOI$value[errorOI$errCorr=="Error" & errorOI$labels=="SS>LLOI"], errorOI$value[errorOI$errCorr=="Correct" & errorOI$labels=="SS>LLOI"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct option index
+cohen.d(errorOI$value[errorOI$labels=="SS>LLOI"],errorOI$errCorr[errorOI$labels=="SS>LLOI"],pooled=TRUE,na.rm=TRUE, paired=TRUE) #Effect size
+t.test(errorOI$value[errorOI$errCorr=="Error" & errorOI$labels=="LL>SSOI"], errorOI$value[errorOI$errCorr=="Correct" & errorOI$labels=="LL>SSOI"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct option index
+cohen.d(errorOI$value[errorOI$labels=="LL>SSOI"],errorOI$errCorr[errorOI$labels=="LL>SSOI"],pooled=TRUE,na.rm=TRUE, paired=TRUE)
+
+ggplot(errorOI, aes(x=labels,y=value, fill=errCorr))+
+  geom_violin(alpha=.6, size=0,position=position_dodge(0))+
+  stat_summary(fun.data="mean_se",geom="linerange",aes(color=errCorr),alpha=1,size=1.5)+
+  stat_summary(fun.y=mean, geom="line",aes(group=errCorr, color=errCorr),size=1.5)+
+  geom_text(x=1, y=.9, label="***",size=10)+ geom_text(x=2, y=.9, label="***",size=10)+ 
+  coord_cartesian(ylim=c(-1,1))+ scale_colour_grey()+scale_fill_grey()+
+  theme_bw()+theme(text=element_text(size=20))+ scale_x_discrete(labels=c("SS>LL", "LL>SS"))+
+  xlab("Choices")+ylab("Option Index")+labs(fill="",color="")+guides(size="none")
+ggsave("errOI.pdf",width=6.5, height=5)
+
+#Replication sample
+t.test(errorOI2$value[errorOI2$errCorr=="Error" & errorOI2$labels=="SS>LLOI"], errorOI2$value[errorOI2$errCorr=="Correct" & errorOI2$labels=="SS>LLOI"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct option index
+cohen.d(errorOI2$value[errorOI2$labels=="SS>LLOI"],errorOI2$errCorr[errorOI2$labels=="SS>LLOI"],pooled=TRUE,na.rm=TRUE, paired=TRUE) #Effect size
+t.test(errorOI2$value[errorOI2$errCorr=="Error" & errorOI2$labels=="LL>SSOI"], errorOI2$value[errorOI2$errCorr=="Correct" & errorOI2$labels=="LL>SSOI"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct option index
+cohen.d(errorOI2$value[errorOI2$labels=="LL>SSOI"],errorOI2$errCorr[errorOI2$labels=="LL>SSOI"],pooled=TRUE,na.rm=TRUE, paired=TRUE)
+
+ggplot(errorOI2, aes(x=labels,y=value, fill=errCorr))+
+  geom_violin(alpha=.6, size=0,position=position_dodge(0))+
+  stat_summary(fun.data="mean_se",geom="linerange",aes(color=errCorr),alpha=1,size=1.5)+
+  stat_summary(fun.y=mean, geom="line",aes(group=errCorr, color=errCorr),size=1.5)+
+  geom_text(x=1, y=.9, label="***",size=10)+ geom_text(x=2, y=.9, label="***",size=10)+ 
+  coord_cartesian(ylim=c(-1,1))+ scale_colour_grey()+scale_fill_grey()+
+  theme_bw()+theme(text=element_text(size=20))+scale_x_discrete(labels=c("SS>LL", "LL>SS"))+ xlab("Choices")+ylab("Option Index")+
+  labs(fill="",color="")+guides(size="none")
+ggsave("errOI2.pdf",width=6.5, height=5)
+
+#Attribute index analysis
+#Primary sample
+t.test(errorAI$value[errorAI$errCorr=="Error" & errorAI$labels=="SS>LLAI"], errorAI$value[errorAI$errCorr=="Correct" & errorAI$labels=="SS>LLAI"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct attribute index
+t.test(errorAI$value[errorAI$errCorr=="Error" & errorAI$labels=="LL>SSAI"], errorAI$value[errorAI$errCorr=="Correct" & errorAI$labels=="LL>SSAI"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct attribute index
+
+#Replication sample
+t.test(errorAI2$value[errorAI2$errCorr=="Error" & errorAI2$labels=="SS>LLAI"], errorAI2$value[errorAI2$errCorr=="Correct" & errorAI2$labels=="SS>LLAI"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct attribute index
+t.test(errorAI2$value[errorAI2$errCorr=="Error" & errorAI2$labels=="LL>SSAI"], errorAI2$value[errorAI2$errCorr=="Correct" & errorAI2$labels=="LL>SSAI"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct attribute index
+
+#Payne index analysis
+#Primary sample
+t.test(errorPI$value[errorPI$errCorr=="Error" & errorPI$labels=="SS>LLPI"], errorPI$value[errorPI$errCorr=="Correct" & errorPI$labels=="SS>LLPI"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct Payne index
+t.test(errorPI$value[errorPI$errCorr=="Error" & errorPI$labels=="LL>SSPI"], errorPI$value[errorPI$errCorr=="Correct" & errorPI$labels=="LL>SSPI"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct Payne index
+
+#Replication sample
+t.test(errorPI2$value[errorPI2$errCorr=="Error" & errorPI2$labels=="SS>LLPI"], errorPI2$value[errorPI2$errCorr=="Correct" & errorPI2$labels=="SS>LLPI"],paired=TRUE, na.action=na.pass) #SS>LL error vs. correct Payne index
+t.test(errorPI2$value[errorPI2$errCorr=="Error" & errorPI2$labels=="LL>SSPI"], errorPI2$value[errorPI2$errCorr=="Correct" & errorPI2$labels=="LL>SSPI"],paired=TRUE, na.action=na.pass) #LL>SS error vs. correct Payne index
+```
+Supplementary Figure 13: Histogram of left/right and top/bottom choice distribution
+```{r}
+#Primary sample
+ggplot(data=choiceSide,aes(x=sideProp))+
+  geom_histogram(bins=15)+theme_bw()+xlab("Proportion Left Choices")+
+  theme(text=element_text(size=20))+xlim(0,1)
+ggsave("choiceSide.pdf",width=5.5, height=5)
+
+#Replication sample
+ggplot(data=choiceSide2,aes(x=sideProp))+
+  geom_histogram(bins=15)+theme_bw()+xlab("Proportion Top Choices")+
+  theme(text=element_text(size=20))+xlim(0,1)
+ggsave("choiceSide2.pdf",width=5.5, height=5)
+```
+Supplementary Figure 14: DDM model checks for estimated proportion of LL choices
+```{r}
+#Attribute-wise DDM
+#Primary sample
+ggplot(DDMcheck, aes(x=ActPat, y=EstPat)) +
+  geom_point(alpha=.5,size=2) + 
+  guides(alpha=FALSE)+xlim(0,1)+ylim(0,1)+
+  scale_colour_grey()+ theme_bw()+
+  geom_abline(intercept=0, slope=1)+
+  theme(text=element_text(size=20)) +
+  xlab("Proportion LL choices") + ylab("Model est. LL choices") 
+ ggsave("actPat_estPat.pdf",width=5.5, height=5)
+cor.test(DDMcheck$ActPat,DDMcheck$EstPat) 
+
+#Replication sample
+ggplot(DDMcheck2, aes(x=ActPat, y=EstPat)) +
+  geom_point(alpha=.5,size=2) + 
+  guides(alpha=FALSE)+xlim(0,1)+ylim(0,1)+
+  scale_colour_grey()+ theme_bw()+
+  geom_abline(intercept=0, slope=1)+
+  theme(text=element_text(size=20)) +
+  xlab("Proportion LL choices") + ylab("Model est. LL choices") 
+ ggsave("actPat_estPat2.pdf",width=5.5, height=5)
+cor.test(DDMcheck2$ActPat,DDMcheck2$EstPat) 
+
+#Option-wise DDM
+#Primary sample
+ggplot(DDMcheck_opt, aes(x=ActPat, y=EstPat)) +
+  geom_point(alpha=.5,size=2) + 
+  guides(alpha=FALSE)+xlim(0,1)+ylim(0,1)+
+  scale_colour_grey()+ theme_bw()+
+  geom_abline(intercept=0, slope=1)+
+  theme(text=element_text(size=20)) +
+  xlab("Proportion LL choices") + ylab("Model est. LL choices") 
+ ggsave("actPat_estPat_opt.pdf",width=5.5, height=5)
+cor.test(DDMcheck_opt$ActPat,DDMcheck_opt$EstPat)
+
+#Replication sample
+ggplot(DDMcheck_opt2, aes(x=ActPat, y=EstPat)) +
+  geom_point(alpha=.5,size=2) + 
+  guides(alpha=FALSE)+xlim(0,1)+ylim(0,1)+
+  scale_colour_grey()+ theme_bw()+
+  geom_abline(intercept=0, slope=1)+
+  theme(text=element_text(size=20)) +
+  xlab("Proportion LL choices") + ylab("Model est. LL choices") 
+ ggsave("actPat_estPat_opt2.pdf",width=5.5, height=5)
+cor.test(DDMcheck_opt2$ActPat,DDMcheck_opt2$EstPat) 
+```
+Supplementary Figure 15: DDM model checks for estimated response time distributions
+```{r}
+#Attribute-wise DDM
+#Primary sample
+ggplot(data=att_RT, aes(x=origRT, y=sampleRT, color=quantile))+
+  geom_point(alpha=.2,size=2)+
+  geom_abline(intercept=0, slope=1)+xlim(0,10)+ylim(0,10)+
+  theme_bw()+ theme(text=element_text(size=20)) +
+  guides(color=guide_colorbar(title="RT octile"))+
+  scale_colour_gradientn(colors=rainbow(8))+
+  labs(color="quantile")+ xlab("Actual response time (s)") + 
+  ylab("Model est. response time (s)") 
+ggsave("actRT_estRT.pdf",width=6.5, height=5)
+cor.test(att_RT$origRT,att_RT$sampleRT) 
+
+#Replication sample
+ggplot(data=att_RT2, aes(x=origRT, y=sampleRT, color=quantile))+
+  geom_point(alpha=.2,size=2)+
+  geom_abline(intercept=0, slope=1)+xlim(0,10)+ylim(0,10)+
+  theme_bw()+ theme(text=element_text(size=20)) +
+  guides(color=guide_colorbar(title="RT octile"))+
+  scale_colour_gradientn(colors=rainbow(8))+
+  labs(color="quantile")+ xlab("Actual response time (s)") + 
+  ylab("Model est. response time (s)") 
+ggsave("actRT_estRT2.pdf",width=6.5, height=5)
+cor.test(att_RT2$origRT,att_RT2$sampleRT) 
+
+#Option-wise model
+#Primary sample
+ggplot(data=opt_RT, aes(x=origRT, y=sampleRT, color=quantile))+
+  geom_point(alpha=.2,size=2)+
+  geom_abline(intercept=0, slope=1)+xlim(0,10)+ylim(0,10)+
+  theme_bw()+ theme(text=element_text(size=20)) +
+  guides(color=guide_colorbar(title="RT octile"))+
+  scale_colour_gradientn(colors=rainbow(8))+
+  labs(color="quantile") + xlab("Actual response time (s)") + 
+  ylab("Model est. response time (s)") 
+ggsave("actRT_estRT_opt.pdf",width=6.5, height=5)
+cor.test(opt_RT$origRT,opt_RT$sampleRT)
+
+#Replication sample
+ggplot(data=opt_RT2, aes(x=origRT, y=sampleRT, color=quantile))+
+  geom_point(alpha=.2,size=2)+
+  geom_abline(intercept=0, slope=1)+xlim(0,10)+ylim(0,10)+
+  theme_bw()+ theme(text=element_text(size=20)) +
+  guides(color=guide_colorbar(title="RT octile"))+
+  scale_colour_gradientn(colors=rainbow(8))+
+  labs(color="quantile") + xlab("Actual response time (s)") + 
+  ylab("Model est. response time (s)") 
+ggsave("actRT_estRT_opt2.pdf",width=6.5, height=5)
+cor.test(opt_RT2$origRT,opt_RT2$sampleRT) 
+```
+Supplementary Figure 16: lack of correlation between noise and drift slopes
+```{r}
+sumDriftSlopes<-dfDDM$driftA[ind]+dfDDM$driftT[ind]
+sumDriftSlopes2<-dfDDM2$driftA[ind2]+dfDDM2$driftT[ind2]
+
+#Number of errors compared to k-value predicted choices
+cor.test(numErrs$errors[ind],sumDriftSlopes) 
+ggplot()+geom_jitter(aes(x=numErrs$errors[ind], y=sumDriftSlopes),size=2.5, alpha=.5,height=.001)+theme_bw()+
+  theme(text=element_text(size=20))+xlab("Number of Errors")+ylab("Sum of Drift Slopes")
+ggsave("errorsByDrifts.pdf",width=5.8, height=5)
+
+cor.test(numErrs2$errors[ind2],sumDriftSlopes2) 
+ggplot()+geom_jitter(aes(x=numErrs2$errors[ind2], y=sumDriftSlopes2),size=2.5, alpha=.5,height=.001)+theme_bw()+
+  theme(text=element_text(size=20))+xlab("Number of Errors")+ylab("Sum of Drift Slopes")
+ggsave("errorsByDrifts2.pdf",width=5.8, height=5)
+```

@@ -1,0 +1,334 @@
+---
+title: "Main figures: Amount and time exert independent influences on intertermporal choice"
+output: html_notebook
+---
+Read in packages and subject IDs
+"ind" is subjects with fitted k
+"indET" is subjects with good eye tracking
+"indETpat" is subjects with fitted k and good ET relative to indET
+```{r}
+#library(shiny)
+wd=getwd()
+setwd(wd) #Optional to set working directory where the data is
+library(ggplot2)
+library(ggsignif)
+library(reshape2)
+library(QuantPsyc)
+library(effsize)
+source("kendall.ci.R") #Load kendall.ci function***
+
+#subjects
+subjects=c(1:117);
+#Exclude all patient: 16,23,45,46,50,65,78,79,86,99,101,110
+sub_excl=c(1:15,17:22,24:44,47:49,51:64,66:77,80:85,87:98,100,102:109,111:117)
+ind<-which(subjects %in% sub_excl) #non all patient subjects
+#Subjects excluding bad eye tracking (validity<.5): 6,18,20,57,59,64,66,67,69,74,92,102
+sub_ETexcl=c(1:5,7:17,19,21:56,58,60:63,65,68,70:73,75:91,93:101,103:117)
+indET<-which(subjects %in% sub_ETexcl) #exclude bad eyetracking, but include all patient
+indETpat<-which(sub_ETexcl %in% sub_excl) #Neither all patient nor bad eyetracking
+
+subjects2=c(1:100);
+#Exclude 2,3,4,10,14*,15,24,25*,41,45,51,54,55,56,67,75,86,91,94,98,100
+# *are not all patient, they are just too noisy to fit
+sub2_excl=c(1,5:9,11:13,16:23,26:40,42:44,46:50,52,53,57:66,68:74,76:85,87:90,92,93,95:97,99);
+ind2<-which(subjects2 %in% sub2_excl) #non all patient subjects
+#Subjects excluding bad eye tracking (validity<.5): 4,10,18,20,25,39,42,50,56,57,59,61,72,82,95 
+sub2_ETexcl=c(1:3,5:9,11:17,19,21:24,26:38,40,41,43:49,51:55,58,60,62:71,73:81,83:94,96:100); 
+indET2<-which(subjects2 %in% sub2_ETexcl) #exclude bad eyetracking, but include all patient
+indETpat2<-which(sub2_ETexcl %in% sub2_excl) #Neither all patient nor bad eyetracking
+```
+Load data
+```{r}
+#kvals
+alllogk<-read.table("allLogk.csv", header=FALSE, sep=",") 
+alllogk2<-read.table("allLogk_rep.csv", header=FALSE, sep=",")
+#ET indices
+opt<-read.table("OptInd.csv", header=FALSE, sep=",") 
+opt2<-read.table("OptInd_rep.csv", header=FALSE, sep=",")
+payneInd<-read.table("PayneInd.csv", header=FALSE, sep=",") 
+payneInd2<-read.table("PayneInd_rep.csv", header=FALSE, sep=",")
+attInd<-read.table("AttInd.csv", header=FALSE, sep=",") 
+attInd2<-read.table("AttInd_rep.csv", header=FALSE, sep=",")
+firstFix<-read.table("firstFixes.csv", header=FALSE, sep=",") 
+firstFix2<-read.table("firstFixes_rep.csv", header=FALSE, sep=",")
+
+#DDM data
+ddm<-read.table("attDDM.csv", header=FALSE, sep=",") 
+ddm2<-read.table("attDDM_rep.csv", header=FALSE, sep=",")
+ddm$driftDif=ddm$V1-ddm$V2
+ddm2$driftDif=ddm2$V1-ddm2$V2
+ddm$NDTdif=ddm$V3-ddm$V4
+ddm2$NDTdif=ddm2$V3-ddm2$V4
+
+#data frames
+dfET=data.frame(ddm[indET,],opt,attInd,payneInd,firstFix)
+colnames(dfET)<-c("driftA","driftT","NDTA","NDTT","Bounds","LL","BIC","AIC",
+                  "difDrift","difNDT","optInd","attInd","payneInd","firstFix")
+dfET$col<-"lightgray"
+dfET$col[indETpat]<-"gray"
+dfET$logk<-alllogk$V1[indET]
+dfET2=data.frame(ddm2[indET2,],opt2,attInd2,payneInd2,firstFix2)
+colnames(dfET2)<-c("driftA","driftT","NDTA","NDTT","Bounds","LL","BIC","AIC",
+                  "difDrift","difNDT","optInd","attInd","payneInd","firstFix")
+dfET2$col<-"lightgray"
+dfET2$col[indETpat2]<-"gray"
+dfET2$logk<-alllogk2$V1[indET2]
+
+#RT
+rt<-read.table("avgRT.csv", header=FALSE, sep=",") 
+rt2<-read.table("avgRT_rep.csv", header=FALSE, sep=",")
+
+#attribute wise DDM data frames
+dfDDM=data.frame(rt$V1, ddm) 
+colnames(dfDDM)<-c("rt","driftA","driftT","NDTA","NDTT","Bounds","LL","BIC","AIC","difDrift","difNDT")
+dfDDM$logk=alllogk$V1
+dfDDM$color="light gray"
+dfDDM$color[ind]="gray"
+dfDDM$meanLat=(dfDDM$NDTA+dfDDM$NDTT)/2
+#Group 2
+dfDDM2=data.frame(rt2$V1,ddm2)
+colnames(dfDDM2)<-c("rt","driftA","driftT","NDTA","NDTT","Bounds","LL","BIC","AIC","difDrift","difNDT")
+dfDDM2$logk=alllogk2$V1
+dfDDM2$color="light gray"
+dfDDM2$color[ind2]="gray"
+dfDDM2$meanLat=(dfDDM2$NDTA+dfDDM2$NDTT)/2
+#Option-wise DDM data frames
+ddm_hyp<-read.table("optDDM.csv", header=FALSE, sep=",")
+ddm_hyp$driftDif=log(ddm_hyp$V1)-log(ddm_hyp$V2)
+ddm_hyp$NDTdif=ddm_hyp$V3-ddm_hyp$V4
+dfDDM_hyp=data.frame(rt$V1,ddm_hyp)
+colnames(dfDDM_hyp)<-c("rt","driftA","driftT","NDTA","NDTT","Bounds","LL","BIC","AIC","difDrift","difNDT")
+dfDDM_hyp$logk=alllogk$V1
+dfDDM_hyp$color="light gray"
+dfDDM_hyp$color[ind]="gray"
+dfDDM_hyp$meanLat=(dfDDM_hyp$NDTA+dfDDM_hyp$NDTT)/2
+#Group2
+ddm_hyp2<-read.table("optDDM_rep.csv", header=FALSE, sep=",")
+ddm_hyp2$driftDif=log(ddm_hyp2$V1)-log(ddm_hyp2$V2)
+ddm_hyp2$NDTdif=ddm_hyp2$V3-ddm_hyp2$V4
+dfDDM_hyp2=data.frame(rt2$V1 ,ddm_hyp2)
+colnames(dfDDM_hyp2)<-c("rt","driftA","driftT","NDTA","NDTT","Bounds","LL","BIC","AIC","difDrift","difNDT")
+dfDDM_hyp2$logk=alllogk2$V1
+dfDDM_hyp2$color="light gray"
+dfDDM_hyp2$color[ind2]="gray"
+dfDDM_hyp2$meanLat=(dfDDM_hyp2$NDTA+dfDDM_hyp2$NDTT)/2
+#BIC data frames
+dfBIC<-data.frame(dfDDM$BIC,dfDDM_hyp$BIC,dfDDM$logk)
+colnames(dfBIC)<-c("attBIC","optBIC","logk")
+dfBIC$dif<-dfBIC$attBIC-dfBIC$optBIC
+dfBIC$col<-"gray80" #all patient are light gray
+dfBIC$col[ind]<-"gray50" #regular are gray
+dfBIC$col[which(dfBIC$dif>0)]<-"gray25" #option-wise better than attribute-wise is darker
+dfBIC$shape<-dfDDM$color
+#Group 2
+dfBIC2<-data.frame(dfDDM2$BIC,dfDDM_hyp2$BIC,dfDDM2$logk)
+colnames(dfBIC2)<-c("attBIC","optBIC","logk")
+dfBIC2$dif<-dfBIC2$attBIC-dfBIC2$optBIC
+dfBIC2$col<-"gray80" #all patient are light gray
+dfBIC2$col[ind2]<-"gray50" #regular are gray
+dfBIC2$col[which(dfBIC2$dif>0)]<-"gray25" #option-wise better than attribute-wise is darker
+dfBIC2$shape<-dfDDM2$color
+```
+Figure 2 plot of difference in BIC by k for option-wise and attribute-wise DDM
+```{r}
+#Comparison of BIC's for attribute-wise vs. option-wise DDM
+ggplot(dfBIC, aes(x=dif, y=logk)) + 
+  geom_point(aes(color=col, shape=shape),size=2.5, alpha=.7)+
+  guides(alpha=FALSE)+ylim(-9.5,0)+
+  theme_bw()+scale_colour_grey(start=.1, end=.7)+
+  scale_shape_manual(values=c(16,17))+
+  scale_x_continuous(breaks=seq(-125,75,by=25), limits=c(-130,80))+
+  theme(text=element_text(size=20),legend.position = "none",plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  xlab("Attribute-wise - Option-wise BIC") +
+  ylab("Log(k)") 
+ggsave("DDM_BIC_logk.pdf",width=6.2,height=5)
+cor.test(dfBIC$attBIC[ind]-dfBIC$optBIC[ind],dfBIC$logk[ind]) 
+binom.test(sum(dfBIC$dif<0),length(dfBIC$dif),p=.5,alternative=c("two.sided"))
+
+#Histogram
+col=c(rep("gray50",13),rep("gray25",7))
+ggplot(dfBIC, aes(x=dif))+theme_bw()+
+  xlab("Attribute-wise - Option-wise BIC")+ylab("Count")+
+  geom_histogram(breaks=seq(-130,70, by=10),fill=col, color="white")+
+  theme(text=element_text(size=20))+ylim(0,35)+
+  scale_x_continuous(breaks=seq(-125,75,by=25), limits=c(-130,80))
+ggsave("DDM_BIC.pdf", width=5.5, height=4)
+
+### Group 2
+ggplot(dfBIC2, aes(x=dif, y=logk)) + 
+  geom_point(aes(color=col, shape=shape),size=2.5, alpha=.7)+
+  guides(alpha=FALSE)+ylim(-9.5,0)+
+  theme_bw()+scale_colour_grey(start=.1, end=.7)+
+  scale_shape_manual(values=c(16,17))+
+  scale_x_continuous(breaks=seq(-125,75,by=25), limits=c(-130,80))+
+  theme(text=element_text(size=20),legend.position = "none",plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  xlab("Attribute-wise - Option-wise BIC") +
+  ylab("Log(k)") 
+ggsave("DDM_BIC_logk2.pdf",width=6.2,height=5)
+cor.test(dfBIC2$attBIC[ind2]-dfBIC2$optBIC[ind2],dfBIC2$logk[ind2]) 
+binom.test(sum(dfBIC2$dif<0),length(dfBIC2$col),p=.5,alternative=c("two.sided"))
+
+#Histogram
+col=c(rep("gray50",13),rep("gray25",7))
+ggplot(dfBIC2, aes(x=dif))+theme_bw()+
+  xlab("Attribute-wise - Option-wise BIC")+ylab("Count")+
+  geom_histogram(breaks=seq(-130,70, by=10),fill=col, color="white")+
+  theme(text=element_text(size=20))+ylim(0,35)+
+  scale_x_continuous(breaks=seq(-125,75,by=25), limits=c(-130,80))
+ggsave("DDM_BIC2.pdf", width=5.5, height=4)
+```
+Figure 3 plot of drift slopes, difference in drift slope by log(k), and difference in latency by log(k)
+```{r}
+#Correlation of drift slope amt and time for attribute-wise DDM
+ggplot(dfDDM, aes(x=driftA, y=driftT)) +
+  geom_jitter(aes(col=logk, alpha=.5),size=2.5, width=.001, height=.001) + 
+  guides(alpha=FALSE)+xlim(-.001,.081)+ylim(-.001,.061)+
+  scale_colour_gradientn(limits=c(-9.5,-.4), colors=rainbow(8)) + #for rainbow
+  #scale_colour_gradient(low="gray10", high="gray80") + for grayscale
+  theme_bw()+theme(text=element_text(size=20)) +
+  xlab("Drift Slope Amount") + ylab("Drift Slope Time") 
+ ggsave("driftA_driftT.pdf",width=6.5, height=5)
+cor.test(dfDDM$driftA,dfDDM$driftT) 
+
+# Corr drift slopes group 2
+ggplot(dfDDM2, aes(x=driftA, y=driftT)) +
+  geom_jitter(aes(col=logk, alpha=.5),size=2.5, width=.001, height=.001) + 
+  guides(alpha=FALSE)+xlim(-.001,.081)+ylim(-.001,.061)+
+  scale_colour_gradientn(limits=c(-9.5,-.4),colors=rainbow(8)) + #for rainbow
+  #scale_colour_gradient(low="gray10", high="gray80") + for grayscale
+  theme_bw()+ theme(text=element_text(size=20)) +
+  xlab("Drift Slope Amount") + ylab("Drift Slope Time") 
+ggsave("driftA_driftT2.pdf",width=6.5, height=5)
+cor.test(dfDDM2$driftA,dfDDM2$driftT) 
+
+#Cor of dif drift speeds vs. k
+ggplot(dfDDM, aes(x=difDrift, y=logk)) +
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+ theme_bw()+
+  scale_colour_grey(start=.1, end=.6)+ ylim(-10,0)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20),legend.position = "none",  plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  scale_x_continuous(breaks=seq(-.04,.08,by=.02), limits=c(-.04,.08))+
+  xlab("Drift Slope Amount - Drift Slope Time") +
+  ylab("Log(k)") 
+ggsave("difDrift_logK.pdf",width=6, height=5)
+cor.test(dfDDM$difDrift[ind],dfDDM$logk[ind]) 
+
+#Cor of dif drift speeds vs. k group 2
+ggplot(dfDDM2, aes(x=difDrift, y=logk)) +
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+theme_bw()+
+  scale_colour_grey(start=.1, end=.6)+ylim(-10,0)+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20),legend.position = "none", plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  scale_x_continuous(breaks=seq(-.04,.08,by=.02), limits=c(-.04,.08))+
+  xlab("Drift Slope Amount - Drift Slope Time") +
+  ylab("Log(k)") 
+ggsave("difDrift_logK2.pdf",width=6, height=5)
+cor.test(dfDDM2$difDrift[ind2],dfDDM2$logk[ind2]) 
+
+#Cor dif attribute latency (*10 to get ms, /100 to get s) and log k
+drift0<-which(dfDDM$driftA==0 | dfDDM$driftT==0)
+latInd=setdiff(ind,drift0)
+ggplot(dfDDM, aes(x=difNDT/100, y=logk)) + 
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+xlim(-2,2)+ylim(-10,0)+
+  theme_bw()+scale_colour_grey()+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20),legend.position = "none")+
+  xlab("Amount latency - Time latency (s)") +
+  ylab("Log(k)") 
+ggsave("diflat_logK.pdf",width=5.6,height=5)
+cor.test(dfDDM$difNDT[ind],dfDDM$logk[ind]) 
+t.test(dfDDM$NDTA,dfDDM$NDTT,paired=TRUE) 
+cohen.d(dfDDM$NDTA,dfDDM$NDTT, pooled=TRUE, paired=TRUE)
+
+#Cor dif attribute latency (*10 to get ms) and log k Group 2
+ggplot(dfDDM2, aes(x=difNDT/100, y=logk)) + 
+  geom_point(aes(color=color, shape=color),size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+xlim(-2,2)+ylim(-10,0)+
+  theme_bw()+scale_colour_grey()+
+  scale_shape_manual(values=c(16,17))+
+  theme(text=element_text(size=20),legend.position = "none")+
+  xlab("Amount latency - Time latency (s)") +
+  ylab("Log(k)") 
+ggsave("diflat_logK2.pdf",width=5.6,height=5)
+cor.test(dfDDM2$difNDT[ind2],dfDDM2$logk[ind2])
+t.test(dfDDM2$NDTA,dfDDM2$NDTT,paired=TRUE)
+cohen.d(dfDDM2$NDTA,dfDDM2$NDTT, pooled=TRUE, paired=TRUE)
+
+#Correlation of bounds and logk
+cor.test(dfDDM$Bounds[ind],dfDDM$logk[ind]) 
+cor.test(dfDDM2$Bounds[ind2],dfDDM2$logk[ind2]) 
+#Correlation of bounds and RT
+cor.test(dfDDM$logk[ind],dfDDM$rt[ind])
+cor.test(dfDDM2$logk[ind2],dfDDM2$rt[ind2]) 
+```
+Figure 4 plot of Attribute Index and Payne Index by dif drift slope
+```{r}
+ggplot(dfET, aes(x=difDrift, y=attInd)) +
+  geom_point(size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+
+  theme_bw()+xlim(-.04,.07)+ylim(-1,1)+
+  scale_colour_grey()+
+  scale_x_continuous(breaks=seq(-.04,.08,by=.02), limits=c(-.04,.08))+
+  theme(text=element_text(size=20), plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  xlab("Drift Slope Amount - Drift Slope Time") +
+  ylab("Attribute index") 
+ggsave("difDrift_att.pdf",width=5.8, height=5)
+cor.test(dfET$logk[indETpat],dfET$attInd[indETpat]) 
+cor.test(dfET$difDrift,dfET$attInd) 
+
+#Cor attribute index and dif drift speeds group 2
+ggplot(dfET2, aes(x=difDrift, y=attInd)) +
+  geom_point(size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+
+  theme_bw()+xlim(-.04,.07)+ylim(-1,1)+
+  scale_colour_grey()+
+  scale_x_continuous(breaks=seq(-.04,.08,by=.02), limits=c(-.04,.08))+
+  theme(text=element_text(size=20), plot.margin=unit(c(.5,1,.5,.5),"cm"))+
+  xlab("Drift Slope Amount - Drift Slope Time") +
+  ylab("Attribute index") 
+ggsave("difDrift_att2.pdf",width=5.8, height=5)
+cor.test(dfET2$logk[indETpat2],dfET2$attInd[indETpat2]) 
+cor.test(dfET2$difDrift,dfET2$attInd)
+
+cor.test(dfET$optInd[indETpat],dfET$logk[indETpat]) 
+cor.test(dfET2$optInd[indETpat2],dfET2$logk[indETpat2]) 
+
+#Cor dif drift slopes and Payne index
+ggplot(dfET, aes(x=difDrift, y=payneInd)) +
+  geom_point(size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+
+  theme_bw()+xlim(-.07,.07)+
+  scale_colour_grey()+ylim(-1,1)+
+  theme(text=element_text(size=20))+
+  scale_x_continuous(breaks=seq(-.04,.08,by=.02), limits=c(-.04,.08))+
+  xlab("Drift Slope Amount - Drift Slope Time") +
+  ylab("Payne index") 
+ggsave("difDrift_payne.pdf",width=5.7, height=5)
+cor.test(dfET$logk[indETpat],dfET$payneInd[indETpat]) 
+cor.test(dfET$difDrift,dfET$payneInd) 
+cor.test(dfET$payneInd,dfET$attInd) 
+
+#Cor dif drift slopes and Payne index Group 2
+ggplot(dfET2, aes(x=difDrift, y=payneInd)) +
+  geom_point(size=2.5, alpha=.5)+
+  guides(alpha=FALSE)+
+  theme_bw()+xlim(-.07,.07)+
+  scale_colour_grey()+ylim(-1,1)+
+  theme(text=element_text(size=20))+
+  scale_x_continuous(breaks=seq(-.04,.08,by=.02), limits=c(-.04,.08))+
+  xlab("Drift Slope Amount - Drift Slope Time") +
+  ylab("Payne index") 
+ggsave("difDrift_payne2.pdf",width=5.7, height=5)
+cor.test(dfET2$logk[indETpat2],dfET2$payneInd[indETpat2]) 
+cor.test(dfET2$difDrift,dfET2$payneInd) 
+cor.test(dfET2$payneInd,dfET2$attInd) 
+
+#First fixation is not normal--highly skewed distribution, so use kendall's tau instead
+cor.test(dfDDM$difNDT[indET],firstFix$V1, method=c("kendall"))
+kendall.ci(dfDDM$difNDT[indET],firstFix$V1)
+cor.test(dfDDM2$difNDT[indET2],firstFix2$V1,method=c("kendall"))
+kendall.ci(dfDDM2$difNDT[indET2],firstFix2$V1)
+```
